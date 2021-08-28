@@ -2,11 +2,11 @@ __author__ = 'hwcao'
 __version__ = '1.0'
 
 import numpy as np
-import open3d as o3d
+# import open3d as o3d
 import copy
-import cv2
+# import cv2
 
-from utils.utils import plot_sucker, batch_rgbdxyz_2_rgbxy_depth, framexy_depth_2_xyz, batch_framexy_depth_2_xyz, key_point_2_rotation, batch_framexy_depth_2_xyz, batch_key_point_2_rotation
+from utils.utils import plot_sucker
 
 SUCTION_ARRAY_LEN = 8
 EPS = 1e-8

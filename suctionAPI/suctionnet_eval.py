@@ -5,19 +5,12 @@ __version__ = '1.0'
 
 import numpy as np
 import os
-import sys
-import scipy.io as scio
-import skimage
 import argparse
-import cv2
-import time
-import pickle
 import open3d as o3d
-from PIL import Image
 from suctionnet import SuctionNet
 from suction import SuctionGroup
 from utils.eval_utils import get_scene_name, create_table_points, parse_posevector,\
-     transform_points, compute_point_distance, voxel_sample_points, eval_suction
+     transform_points, voxel_sample_points, eval_suction
 from utils.xmlhandler import xmlReader
 
 

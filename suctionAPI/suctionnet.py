@@ -1,4 +1,4 @@
-__author__ = 'hsfang, mhgou, cxwang'
+__author__ = 'hwcao'
 __version__ = '1.0'
 
 # Interface for accessing the SuctionNet-1Billion dataset.
