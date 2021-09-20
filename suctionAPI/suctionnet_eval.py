@@ -198,7 +198,20 @@ class SuctionNetEval(SuctionNet):
         return scene_acc_list
 
     def eval_all(self, dump_folder, threshold_list, proc=2):
-        res = np.array(self.parallel_eval_scenes(scene_ids=list(range(100, 190)), dump_folder=dump_folder, threshold_list=threshold_list, proc=proc))
+        if self.split == 'train':
+            scene_ids = list(range(100))
+        elif self.split == 'test':
+            scene_ids = list(range(100, 190))
+        elif self.split == 'test_seen':
+            scene_ids = list(range(100, 130))
+        elif self.split == 'test_similar':
+            scene_ids = list(range(130, 160))
+        elif self.split == 'test_novel':
+            scene_ids = list(range(160, 190))
+        else:
+            raise NotImplementedError('invalid split')
+
+        res = np.array(self.parallel_eval_scenes(scene_ids=scene_ids, dump_folder=dump_folder, threshold_list=threshold_list, proc=proc))
         save_dir = os.path.join(self.save_root, 'accuracy')
         os.makedirs(save_dir, exist_ok=True)
         save_file = os.path.join(save_dir, self.camera+'.npy')
@@ -218,12 +231,21 @@ if __name__ == "__main__":
     parser.add_argument('--split', default='test', help='Which split to perform evaluation. Could be test_seen, test_similar, test_novel or test (all the above). [default: test]')
     args = parser.parse_args()
     
-    data_root = args.data_root
-    dense_root = args.dense_root
-    pred_root = args.pred_root
-    save_root = args.pred_root if args.save_root is None else args.save_root
-    camera = args.camera
-    split = args.split
+    # data_root = args.data_root
+    # dense_root = args.dense_root
+    # pred_root = args.pred_root
+    # save_root = args.pred_root if args.save_root is None else args.save_root
+    # camera = args.camera
+    # split = args.split
+
+    data_root = '/DATA2/Benchmark/graspnet'
+    dense_root = '/DATA1/hanwen/grasping/models_poisson'
+    pred_root = '/DATA2/Benchmark/suction/inference_results/deeplabV3plus'
+    save_root = '/DATA2/Benchmark/suction/inference_results/deeplabV3plus_test_API'
+    # camera = 'kinect'
+    camera = 'realsense'
+    split = 'test'
+
     threshold_list = [0.2, 0.4, 0.6, 0.8]
     suction_eval = SuctionNetEval(data_root, dense_root, camera, split, save_root)
 

@@ -1,17 +1,20 @@
 __author__ = 'hwcao'
 __version__ = '1.0'
 
+# TODO
+# check_data_completeness (wrench), showObjSuction, showSceneSuction, show6DPose, loadSuctionLabels, loadSuction
+
 # Interface for accessing the SuctionNet-1Billion dataset.
 # Description and part of the codes modified from MSCOCO api
 
-# SuctionNet is an open project for general object grasping that is continuously enriched.
-# Currently we release SuctionNet-1Billion, a large-scale benchmark for general object grasping,
+# SuctionNet is an open project for general object suction grasping that is continuously enriched.
+# Currently we release SuctionNet-1Billion, a large-scale benchmark for general object suction grasping,
 # as well as other related areas (e.g. 6D pose estimation, unseen object segmentation, etc.).
-# graspnetapi is a Python API that # assists in loading, parsing and visualizing the
+# suctionnetapi is a Python API that # assists in loading, parsing and visualizing the
 # annotations in SuctionNet. Please visit https://graspnet.net/ for more information on SuctionNet,
 # including for the data, paper, and tutorials. The exact format of the annotations
-# is also described on the SuctionNet website. For example usage of the graspnetapi
-# please see graspnetapi_demo.ipynb. In addition to this API, please download both
+# is also described on the website. For example usage of the suctionnetapi
+# please see suctionnetapi_demo.ipynb. In addition to this API, please download both
 # the SuctionNet images and annotations in order to run the demo.
 
 # An alternative to using the API is to load the annotations directly
@@ -25,19 +28,19 @@ __version__ = '1.0'
 #  getSceneIds          - Get scene ids that satisfy given filter conditions.
 #  getObjIds            - Get obj ids that satisfy given filter conditions.
 #  getDataIds           - Get data ids that satisfy given filter conditions.
-#  loadGraspLabels      - Load grasp labels with the specified object ids.
+#  loadSuctionLabels      - Load suction labels with the specified object ids.
 #  loadObjModels        - Load object 3d mesh model with the specified object ids.
 #  loadCollisionLabels  - Load collision labels with the specified scene ids.
-#  loadGrasp            - Load grasp labels with the specified scene and annotation id.
+#  loadSuction            - Load suction labels with the specified scene and annotation id.
 #  loadData             - Load data path with the specified data ids.
-#  showObjGrasp         - Save visualization of the grasp pose of specified object ids.
-#  showSceneGrasp       - Save visualization of the grasp pose of specified scene ids.
+#  showObjSuction         - Save visualization of the suction pose of specified object ids.
+#  showSceneSuction       - Save visualization of the suction pose of specified scene ids.
 #  show6DPose           - Save visualization of the 6d pose of specified scene ids, project obj models onto pointcloud
 # Throughout the API "ann"=annotation, "obj"=object, and "img"=image.
 
 # SuctionNet Toolbox.      version 1.0
 # Data, paper, and tutorials available at:  https://graspnet.net/
-# Code written by Hao-Shu Fang, Minghao Gou and Chenxi Wang, 2020.
+# Code written by Hanwen Cao, 2021.
 # Licensed under the none commercial CC4.0 license [see https://graspnet.net/about]
 
 import os
@@ -48,11 +51,12 @@ import cv2
 import trimesh
 
 from suction import Suction, SuctionGroup
-from utils.utils import transform_points, parse_posevector
+from utils.utils import transform_points, parse_posevector, generate_scene_model, create_table_cloud, get_model_suctions, \
+    plot_sucker
 from utils.xmlhandler import xmlReader
+from utils.rotation import viewpoint_to_matrix
 
 TOTAL_SCENE_NUM = 190
-GRASP_HEIGHT = 0.02
 
 def _isArrayLike(obj):
     return hasattr(obj, '__iter__') and hasattr(obj, '__len__')
@@ -95,7 +99,6 @@ class SuctionNet():
         self.depthPath = []
         self.segLabelPath = []
         self.metaPath = []
-        self.rectLabelPath = []
         self.sceneName = []
         self.annId = []
 
@@ -109,8 +112,6 @@ class SuctionNet():
                     root, 'scenes', 'scene_'+str(i).zfill(4), camera, 'label', str(img_num).zfill(4)+'.png'))
                 self.metaPath.append(os.path.join(
                     root, 'scenes', 'scene_'+str(i).zfill(4), camera, 'meta', str(img_num).zfill(4)+'.mat'))
-                self.rectLabelPath.append(os.path.join(
-                    root, 'scenes', 'scene_'+str(i).zfill(4), camera, 'rect', str(img_num).zfill(4)+'.npy'))
                 self.sceneName.append('scene_'+str(i).zfill(4))
                 self.annId.append(img_num)
 
@@ -138,12 +139,20 @@ class SuctionNet():
             if not os.path.exists(os.path.join(self.root, 'models','%03d' % obj_id, 'textured.obj')):
                 error_flag = True
                 print('No textured.obj For Object {}'.format(obj_id))
-        for obj_id in tqdm(range(88), 'Checking Grasp Labels'):
-            if not os.path.exists(os.path.join(self.root, 'grasp_label', '%03d_labels.npz' % obj_id)):
+        for obj_id in tqdm(range(88), 'Checking Seal Labels'):
+            if not os.path.exists(os.path.join(self.root, 'seal_label', '%03d_labels.npz' % obj_id)):
                 error_flag = True
-                print('No Grasp Label For Object {}'.format(obj_id))
+                print('No Seal Label For Object {}'.format(obj_id))
+        for sceneId in self.sceneIds:
+            scene_reader = xmlReader(os.path.join(self.root, 'scenes', 'scene_%04d' % sceneId, 'kinect', 'annotations', '%04d.xml'% 0))
+            posevectors = scene_reader.getposevectorlist()
+            for posevector in posevectors:
+                obj_id, _ = parse_posevector(posevector)
+                if not os.path.exists(os.path.join(self.root, 'wrench_label', 'scene_%04d'%sceneId, '%03d_labels.npz' % obj_id)):
+                    error_flag = True
+                    print('No Wrench Label For Object {}'.format(obj_id))
         for sceneId in tqdm(self.sceneIds, 'Checking Collosion Labels'):
-            if not os.path.exists(os.path.join(self.root, 'collision_label', 'scene_%04d' % sceneId, 'collision_labels.npz')):
+            if not os.path.exists(os.path.join(self.root, 'collision_label', '%04d_collision.npz' % sceneId)):
                 error_flag = True
                 print('No Collision Labels For Scene {}'.format(sceneId))
         for sceneId in tqdm(self.sceneIds, 'Checking Scene Datas'):
@@ -252,7 +261,7 @@ class SuctionNet():
             ids += list(range(idx, idx+256))
         return ids
 
-    def loadGraspLabels(self, objIds=None):
+    def loadSuctionLabels(self, objIds=None):
         '''
         **Input:**
 
@@ -525,121 +534,6 @@ class SuctionNet():
             pose_list.append(pose)
         return model_list
 
-    def loadGrasp(self, sceneId, annId=0, format = '6d', camera='kinect', grasp_labels = None, collision_labels = None, fric_coef_thresh=0.4):
-        '''
-        **Input:**
-
-        - sceneId: int of scene id.
-
-        - annId: int of annotation id.
-
-        - format: string of grasp format, '6d' or 'rect'.
-
-        - camera: string of camera type, 'kinect' or 'realsense'.
-
-        - grasp_labels: dict of grasp labels. Call self.loadGraspLabels if not given.
-
-        - collision_labels: dict of collision labels. Call self.loadCollisionLabels if not given.
-
-        - fric_coef_thresh: float of the frcition coefficient threshold of the grasp. 
-
-        ** ATTENTION **
-
-        the LOWER the friction coefficient is, the better the grasp is.
-
-        **Output:**
-
-        - a python dictionary. The key is the object id and the content is also a dict.
-        
-        The element of each dict gives the parameters of a grasp.
-        '''
-        import numpy as np
-        assert format == '6d' or format == 'rect', 'format must be "6d" or "rect"'
-        if format == '6d':
-            from .utils.xmlhandler import xmlReader
-            from .utils.utils import get_obj_pose_list, generate_views, get_model_grasps, transform_points
-            from .utils.rotation import batch_viewpoint_params_to_matrix
-            
-            camera_poses = np.load(os.path.join(self.root,'scenes','scene_%04d' %(sceneId,),camera, 'camera_poses.npy'))
-            camera_pose = camera_poses[annId]
-            scene_reader = xmlReader(os.path.join(self.root,'scenes','scene_%04d' %(sceneId,),camera,'annotations','%04d.xml' %(annId,)))
-            pose_vectors = scene_reader.getposevectorlist()
-
-            obj_list,pose_list = get_obj_pose_list(camera_pose,pose_vectors)
-            if grasp_labels is None:
-                print('warning: grasp_labels are not given, calling self.loadGraspLabels to retrieve them')
-                grasp_labels = self.loadGraspLabels(objIds = obj_list)
-            if collision_labels is None:
-                print('warning: collision_labels are not given, calling self.loadCollisionLabels to retrieve them')
-                collision_labels = self.loadCollisionLabels(sceneId)
-
-            num_views, num_angles, num_depths = 300, 12, 4
-            template_views = generate_views(num_views)
-            template_views = template_views[np.newaxis, :, np.newaxis, np.newaxis, :]
-            template_views = np.tile(template_views, [1, 1, num_angles, num_depths, 1])
-
-            collision_dump = collision_labels['scene_'+str(sceneId).zfill(4)]
-
-            # grasp = dict()
-            grasp_group = GraspGroup()
-            for i, (obj_idx, trans) in enumerate(zip(obj_list, pose_list)):
-
-                sampled_points, offsets, fric_coefs = grasp_labels[obj_idx]
-                collision = collision_dump[i]
-                point_inds = np.arange(sampled_points.shape[0])
-
-                num_points = len(point_inds)
-                target_points = sampled_points[:, np.newaxis, np.newaxis, np.newaxis, :]
-                target_points = np.tile(target_points, [1, num_views, num_angles, num_depths, 1])
-                views = np.tile(template_views, [num_points, 1, 1, 1, 1])
-                angles = offsets[:, :, :, :, 0]
-                depths = offsets[:, :, :, :, 1]
-                widths = offsets[:, :, :, :, 2]
-
-                mask1 = ((fric_coefs <= fric_coef_thresh) & (fric_coefs > 0) & ~collision)
-                target_points = target_points[mask1]
-                target_points = transform_points(target_points, trans)
-                target_points = transform_points(target_points, np.linalg.inv(camera_pose))
-                views = views[mask1]
-                angles = angles[mask1]
-                depths = depths[mask1]
-                widths = widths[mask1]
-                fric_coefs = fric_coefs[mask1]
-
-                Rs = batch_viewpoint_params_to_matrix(-views, angles)
-                Rs = np.matmul(trans[np.newaxis, :3, :3], Rs)
-                Rs = np.matmul(np.linalg.inv(camera_pose)[np.newaxis,:3,:3], Rs)
-
-                num_grasp = widths.shape[0]
-                scores = (1.1 - fric_coefs).reshape(-1,1)
-                widths = widths.reshape(-1,1)
-                heights = GRASP_HEIGHT * np.ones((num_grasp,1))
-                depths = depths.reshape(-1,1)
-                rotations = Rs.reshape((-1,9))
-                object_ids = obj_idx * np.ones((num_grasp,1), dtype=np.int32)
-
-                obj_grasp_array = np.hstack([scores, widths, heights, depths, rotations, target_points, object_ids]).astype(np.float32)
-
-                grasp_group.grasp_group_array = np.concatenate((grasp_group.grasp_group_array, obj_grasp_array))
-            return grasp_group
-        else:
-            import copy
-            # 'rect'
-            # for rectangle grasp, collision labels and grasp labels are not necessray. 
-            ##################### OLD LABEL ################
-            ############### MODIFICATION NEEDED ############
-            rect_grasp_label = np.load(os.path.join(self.root,'scenes','scene_%04d' % sceneId,camera,'rect','%04d.npy' % annId))
-            mask = rect_grasp_label[:,5] >= (1.1 - fric_coef_thresh)
-            rect_grasp_label = rect_grasp_label[mask]
-            # num_grasp = len(rect_grasp_label)
-            rect_grasp = RectGraspGroup()
-            rect_grasp.rect_grasp_group_array = copy.deepcopy(rect_grasp_label)
-            # rect_grasp.rect_grasp_group_array = np.zeros((num_grasp, RECT_GRASP_ARRAY_LEN), dtype = np.float32)
-            # rect_grasp.rect_grasp_group_array[:,:6] = rect_grasp_label
-            # rect_grasp.rect_grasp_group_array[:,5] = 1.1 - rect_grasp.rect_grasp_group_array[:,5]
-            # rect_grasp.rect_grasp_group_array[:,6] = np.ones((num_grasp))
-            return rect_grasp
-
     def loadData(self, ids=None, *extargs):
         '''
         **Input:**
@@ -655,17 +549,16 @@ class SuctionNet():
         - if ids is not specified or is a list, returns a tuple of data path lists
         '''
         if ids is None:
-            return (self.rgbPath, self.depthPath, self.segLabelPath, self.metaPath, self.rectLabelPath, self.sceneName, self.annId)
+            return (self.rgbPath, self.depthPath, self.segLabelPath, self.metaPath, self.sceneName, self.annId)
         
         if len(extargs) == 0:
             if isinstance(ids, int):
-                return (self.rgbPath[ids], self.depthPath[ids], self.segLabelPath[ids], self.metaPath[ids], self.rectLabelPath[ids], self.sceneName[ids], self.annId[ids])
+                return (self.rgbPath[ids], self.depthPath[ids], self.segLabelPath[ids], self.metaPath[ids], self.sceneName[ids], self.annId[ids])
             else:
                 return ([self.rgbPath[id] for id in ids],
                     [self.depthPath[id] for id in ids],
                     [self.segLabelPath[id] for id in ids],
                     [self.metaPath[id] for id in ids],
-                    [self.rectLabelPath[id] for id in ids],
                     [self.sceneName[id] for id in ids],
                     [self.annId[id] for id in ids])
         if len(extargs) == 2:
@@ -675,67 +568,94 @@ class SuctionNet():
             depthPath = os.path.join(self.root, 'scenes', 'scene_'+str(sceneId).zfill(4), camera, 'depth', str(annId).zfill(4)+'.png')
             segLabelPath = os.path.join(self.root, 'scenes', 'scene_'+str(sceneId).zfill(4), camera, 'label', str(annId).zfill(4)+'.png')
             metaPath = os.path.join(self.root, 'scenes', 'scene_'+str(sceneId).zfill(4), camera, 'meta', str(annId).zfill(4)+'.mat')
-            rectLabelPath = os.path.join(self.root, 'scenes', 'scene_'+str(sceneId).zfill(4), camera, 'rect', str(annId).zfill(4)+'.npy')
             scene_name = 'scene_'+str(sceneId).zfill(4)
-            return (rgbPath, depthPath, segLabelPath, metaPath, rectLabelPath, scene_name,annId)
+            return (rgbPath, depthPath, segLabelPath, metaPath, scene_name,annId)
 
-    def showObjGrasp(self, objIds=[], numGrasp=10, th=0.5, saveFolder='save_fig', show=False):
-        from .utils.vis import visObjGrasp
-        objIds = objIds if _isArrayLike(objIds) else [objIds]
-        if len(objIds) == 0:
-            print('You need to specify object ids.')
-            return 0
+    def showObjSuction(self, obj_id, visu_num):
+        ply_dir = os.path.join(self.root, 'models', '%03d' % obj_id, 'nontextured.ply')
+        model = o3d.io.read_point_cloud(ply_dir)
+        
+        radius = 0.01
+        height = 0.1
 
-        if not os.path.exists(saveFolder):
-            os.mkdir(saveFolder)
-        for obj_id in objIds:
-            visObjGrasp(self.root, obj_id, num_grasp=numGrasp,th=th, save_folder=saveFolder, show=show)
+        suckers = []
+        
+        seal_dir = os.path.join(self.root, 'seal_label', '%03d_labels.npz' % obj_id)
+        sampled_points, normals, scores, _ = get_model_suctions('%s/%03d_labels.npz'%(seal_dir, obj_id))
 
-    def showSceneGrasp(self, sceneId, camera = 'kinect', annId = 0, format = '6d', numGrasp = 20, show_object = True, coef_fric_thresh = 0.1):
-        '''
-        **Input:**
+        point_inds = np.random.choice(sampled_points.shape[0], visu_num)
+        np.random.shuffle(point_inds)
+        
+        sucker_params = []
 
-        - sceneId: int of the scene index.
+        for point_ind in point_inds:
+            target_point = sampled_points[point_ind]
+            normal = normals[point_ind]
+            score = scores[point_ind]
 
-        - camera: string of the camera type, 'realsense' or 'kinect'.
+            R = viewpoint_to_matrix(normal)
+            t = target_point
 
-        - annId: int of the annotation index.
+            sucker = plot_sucker(R, t, score, radius, height)
+            suckers.append(sucker)
+            sucker_params.append([target_point[0],target_point[1],target_point[2],normal[0],normal[1],normal[2],radius, height])
+                
+        o3d.visualization.draw_geometries([model, *suckers], width=1536, height=864)
 
-        - format: int of the annotation type, 'rect' or '6d'.
+    def showSceneSuction(self, scene_idx, anno_idx, camera, visu_num_each):
+        scene_name = 'scene_%04d' % scene_idx
+        model_list, obj_list, pose_list = generate_scene_model(self.root, scene_name, anno_idx, return_poses=True, camera=camera, align=True)
+        table = create_table_cloud(1.0, 0.02, 1.0, dx=-0.5, dy=-0.5, dz=0, grid_size=0.01)
 
-        - numGrasp: int of the displayed grasp number, grasps will be randomly sampled.
+        camera_poses = np.load(os.path.join(self.root, 'scenes', scene_name, camera, 'camera_poses.npy'.format(camera)))
+        camera_pose = camera_poses[anno_idx]
+        table.points = o3d.utility.Vector3dVector(transform_points(np.asarray(table.points), camera_pose))
+        
+        collision_dir = os.path.join(self.root, 'collision_label')
+        collision_dump = np.load(os.path.join(collision_dir, '{}_{}_collision.npz'.format(scene_idx, camera)))
 
-        - coef_fric_thresh: float of the friction coefficient of grasps. 
-        '''
-        if format == '6d':
-            geometries = []
-            sceneGrasp = self.loadGrasp(sceneId = sceneId, annId = annId, camera = camera, format = '6d', fric_coef_thresh = coef_fric_thresh)
-            sceneGrasp = sceneGrasp.random_sample(numGrasp = numGrasp)
-            scenePCD = self.loadScenePointCloud(sceneId = sceneId, camera = camera, annId = annId, align = False)
-            geometries.append(scenePCD)
-            geometries += sceneGrasp.to_open3d_geometry_list()
-            if show_object:
-                objectPCD = self.loadSceneModel(sceneId = sceneId, camera = camera, annId = annId, align = False)
-                geometries += objectPCD
-            o3d.visualization.draw_geometries(geometries)
-        elif format == 'rect':
-            bgr = self.loadBGR(sceneId = sceneId, camera = camera, annId = annId)
-            sceneGrasp = self.loadGrasp(sceneId = sceneId, camera = camera, annId = annId, format = 'rect', fric_coef_thresh = coef_fric_thresh)
-            sceneGrasp = sceneGrasp.random_sample(numGrasp = numGrasp)
-            img = sceneGrasp.to_opencv_image(bgr, numGrasp = numGrasp)
-            cv2.imshow('Rectangle Grasps',img)
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
+        radius = 0.01
+        height = 0.1
 
-    def show6DPose(self, sceneIds, saveFolder='save_fig', show=False):
-        from .utils.vis import vis6D
-        sceneIds = sceneIds if _isArrayLike(sceneIds) else [sceneIds]
-        if len(sceneIds) == 0:
-            print('You need specify scene ids.')
-            return 0
-        if not os.path.exists(saveFolder):
-            os.mkdir(saveFolder)
-        for scene_id in sceneIds:
-            scene_name = 'scene_'+str(scene_id).zfill(4)
-            vis6D(self.root, scene_name, 0, self.camera,
-                  align_to_table=True, save_folder=saveFolder, show=show)
+        num_obj = len(obj_list)
+        
+        for obj_i in range(len(obj_list)):
+            suckers = []
+            print('Checking ' + str(obj_i+1) + ' / ' + str(num_obj))
+            obj_idx = obj_list[obj_i]
+            trans = pose_list[obj_i]
+            seal_dir = os.path.join(self.root, 'seal_label', '%03d_labels.npz' % obj_i)
+            sampled_points, normals, scores, _ = get_model_suctions('%s/%03d_labels.npz'%(seal_dir, obj_idx))
+            collisions = collision_dump['arr_{}'.format(obj_i)]
+
+            point_inds = np.random.choice(sampled_points.shape[0], visu_num_each)
+            np.random.shuffle(point_inds)
+            
+            sucker_params = []
+
+            for point_ind in point_inds:
+                target_point = sampled_points[point_ind]
+                normal = normals[point_ind]
+                score = scores[point_ind]
+                collision = collisions[point_ind]
+
+                R = viewpoint_to_matrix(normal)
+                t = transform_points(target_point[np.newaxis,:], trans).squeeze()
+                R = np.dot(trans[:3,:3], R)
+                sucker = plot_sucker(R, t, score * float(~bool(collision)), radius, height)
+                suckers.append(sucker)
+                sucker_params.append([target_point[0],target_point[1],target_point[2],normal[0],normal[1],normal[2],radius, height])
+                
+            o3d.visualization.draw_geometries([table, *model_list, *suckers], width=1536, height=864)
+
+    def show6DPose(self, scene_idx, anno_idx, camera, visu_num):
+        scene_name = 'scene_%04d' % scene_idx
+        model_list, _, _ = generate_scene_model(self.root, scene_name, anno_idx, return_poses=True, camera=camera, align=True)
+        table = create_table_cloud(1.0, 0.02, 1.0, dx=-0.5, dy=-0.5, dz=0, grid_size=0.01)
+
+        camera_poses = np.load(os.path.join(self.root, 'scenes', scene_name, camera, 'camera_poses.npy'.format(camera)))
+        camera_pose = camera_poses[anno_idx]
+        table.points = o3d.utility.Vector3dVector(transform_points(np.asarray(table.points), camera_pose))
+        
+        o3d.visualization.draw_geometries([table, *model_list], width=1536, height=864)
+    

@@ -1,7 +1,7 @@
 // Code Written by Minghao Gou
 
-#ifndef GRASPNMS_H
-#define GRASPNMS_H
+#ifndef SUCTIONNMS_H
+#define SUCTIONNMS_H
 #include<iostream>
 #include<stdio.h>
 #include<cstring>
@@ -38,11 +38,11 @@ public:
     void print_data();
 };
 
-double_array grasp_nms(double_array,tuple_thresh);
+double_array suction_nms(double_array,tuple_thresh);
 
 template <typename T> std::vector<unsigned int> reverse_argsort(const std::vector<T> &array);
 tuple_thresh iou(double*,double*);
 
-vector<unsigned int> argsort_grasp(const double_array&);
+vector<unsigned int> argsort_suction(const double_array&);
 
 #endif

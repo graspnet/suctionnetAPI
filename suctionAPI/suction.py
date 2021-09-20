@@ -255,6 +255,6 @@ class SuctionGroup():
         return shuffled_suction_group
 
     def nms(self, translation_thresh = 0.1, rotation_thresh = 30.0 / 180.0 * np.pi):
-        from grasp_nms import nms_grasp
-        return SuctionGroup(nms_grasp(self.suction_group_array, translation_thresh, rotation_thresh))
+        from suction_nms import nms_suction
+        return SuctionGroup(nms_suction(self.suction_group_array, translation_thresh, rotation_thresh))
 

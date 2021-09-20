@@ -1,4 +1,4 @@
-extension: setup.py geo.cpp geo.h grasp_nms.pyx grasp_nms.pxd graspnms.h graspnms.cpp
+extension: setup.py geo.cpp geo.h suction_nms.pyx suction_nms.pxd suctionnms.h suctionnms.cpp
 	python3 setup.py build_ext --inplace
 clean:
-	rm -rf build grasp_nms.cpp grasp_nms.cpython-36m-x86_64-linux-gnu.so
+	rm -rf build suction_nms.cpp suction_nms.cpython-36m-x86_64-linux-gnu.so

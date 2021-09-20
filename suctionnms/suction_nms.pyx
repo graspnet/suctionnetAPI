@@ -3,7 +3,7 @@
 import numpy as np
 cimport numpy as np
 from libc.string cimport memcpy
-from grasp_nms cimport *
+from suction_nms cimport *
 import math
 
 cdef double_array np2array(np.ndarray ary):
@@ -15,19 +15,19 @@ cdef double_array np2array(np.ndarray ary):
     memcpy(da.data,im_buff,r * c * 8)
     return da
 
-def arg_sort_grasp(np.ndarray grasps):
-    cdef int num_grasp = grasps.shape[0]
-    cdef np.ndarray grasp_score  = grasps[:,1]
-    cdef np.ndarray sorted_arg = np.argsort(grasp_score)
+def arg_sort_suction(np.ndarray suctions):
+    cdef int num_suction = suctions.shape[0]
+    cdef np.ndarray suction_score  = suctions[:,1]
+    cdef np.ndarray sorted_arg = np.argsort(suction_score)
     return sorted_arg
 
 def print_data(ary):
     a = np2array(ary)
     a.print_data()
 
-def nms_grasp(np.ndarray grasps,double t,double r):
-    a = np2array(grasps)
-    return array2np(grasp_nms(a,tuple_thresh(t,r)))
+def nms_suction(np.ndarray suctions,double t,double r):
+    a = np2array(suctions)
+    return array2np(suction_nms(a,tuple_thresh(t,r)))
 
 # cdef tuple_thresh double2tuplethresh(double t,double r):
 #     return tuple_thresh(t,r)

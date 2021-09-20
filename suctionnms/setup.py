@@ -6,7 +6,7 @@ from Cython.Build import cythonize
 import numpy
 
 setup(
-    name = 'grasp_nms',
-    ext_modules=cythonize("grasp_nms.pyx"),
+    name = 'suction_nms',
+    ext_modules=cythonize("suction_nms.pyx"),
     include_dirs=[numpy.get_include()]
 )

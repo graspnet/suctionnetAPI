@@ -1,6 +1,6 @@
 // Code Written by Minghao Gou
 
-#include "graspnms.h"
+#include "suctionnms.h"
 #define SCORE_PLACE 0
 #define TRANSLATION_START_PLACE 4
 #define ROTATION_START_PLACE 1
@@ -61,38 +61,38 @@ void double_array::print_data()
         }
         cout << endl;
     }
-    // argsort_grasp(*this);
+    // argsort_suction(*this);
 }
 
-double_array grasp_nms(double_array da_in, tuple_thresh th)
+double_array suction_nms(double_array da_in, tuple_thresh th)
 {
-    vector<unsigned int> sorted_arg_v = argsort_grasp(da_in);
+    vector<unsigned int> sorted_arg_v = argsort_suction(da_in);
     list<unsigned int> sorted_arg(sorted_arg_v.begin(), sorted_arg_v.end());
-    list<unsigned int>::iterator current_num_grasp = sorted_arg.begin();
-    list<unsigned int>::iterator num_grasp, next_grasp;
-    while (current_num_grasp != sorted_arg.end())
+    list<unsigned int>::iterator current_num_suction = sorted_arg.begin();
+    list<unsigned int>::iterator num_suction, next_suction;
+    while (current_num_suction != sorted_arg.end())
     {
-        num_grasp = current_num_grasp;
-        num_grasp++;
-        while (num_grasp != sorted_arg.end())
+        num_suction = current_num_suction;
+        num_suction++;
+        while (num_suction != sorted_arg.end())
         {
-            if (iou(da_in.data + da_in.c * (*current_num_grasp), da_in.data + da_in.c * (*num_grasp)).smaller(th))
+            if (iou(da_in.data + da_in.c * (*current_num_suction), da_in.data + da_in.c * (*num_suction)).smaller(th))
             {
-                num_grasp = sorted_arg.erase(num_grasp);
+                num_suction = sorted_arg.erase(num_suction);
             }
             else
             {
-                num_grasp++;
+                num_suction++;
             }
         }
-        current_num_grasp++;
+        current_num_suction++;
     }
     double_array da_out(sorted_arg.size(), da_in.c);
-    num_grasp = sorted_arg.begin();
+    num_suction = sorted_arg.begin();
     for (int i = 0; i < sorted_arg.size(); i++)
     {
-        memcpy(da_out.data + i * da_in.c, da_in.data + (*num_grasp) * da_in.c, da_in.c * sizeof(double));
-        num_grasp++;
+        memcpy(da_out.data + i * da_in.c, da_in.data + (*num_suction) * da_in.c, da_in.c * sizeof(double));
+        num_suction++;
     }
     return da_out;
 }
@@ -126,16 +126,16 @@ std::vector<unsigned int> reverse_argsort(const std::vector<T> &array)
     return index;
 }
 
-vector<unsigned int> argsort_grasp(const double_array &grasps)
+vector<unsigned int> argsort_suction(const double_array &suctions)
 {
-    vector<double> grasp_scores;
+    vector<double> suction_scores;
     vector<unsigned int> sorted_arg;
-    grasp_scores.reserve(grasps.r);
-    for (int i = 0; i < grasps.r; i++)
+    suction_scores.reserve(suctions.r);
+    for (int i = 0; i < suctions.r; i++)
     {
-        grasp_scores.push_back(grasps.data[i * grasps.c + SCORE_PLACE]);
+        suction_scores.push_back(suctions.data[i * suctions.c + SCORE_PLACE]);
     }
-    sorted_arg = reverse_argsort(grasp_scores);
+    sorted_arg = reverse_argsort(suction_scores);
     return sorted_arg;
 }
 

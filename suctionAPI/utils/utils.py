@@ -208,13 +208,13 @@ def transform_points(points, trans):
     points_ = np.matmul(trans, points_.T).T
     return points_[:,:3]
 
-def get_model_grasps(datapath):
-    label = np.load(datapath)
-    points = label['points']
-    offsets = label['offsets']
-    scores = label['scores']
-    collision = label['collision']
-    return points, offsets, scores, collision
+def get_model_suctions(datapath):
+    dump = np.load(datapath)
+    points = dump['points']
+    normals = dump['normals']
+    scores = dump['scores']
+    collision = dump['collision']
+    return points, normals, scores, collision
 
 def parse_posevector(posevector):
     mat = np.zeros([4,4],dtype=np.float32)
@@ -250,7 +250,7 @@ def plot_sucker(R, t, score, radius=0.01, height=0.1):
         center: target point
         R: rotation matrix
     '''
-    return create_mesh_cylinder(R, t, score, radius, height,)
+    return create_mesh_cylinder(R, t, score, radius, height)
     
 def create_table_cloud(width, height, depth, dx=0, dy=0, dz=0, grid_size=0.01):
     xmap = np.linspace(0, width, int(width/grid_size))
@@ -312,39 +312,6 @@ def find_scene_by_model_id(dataset_root, model_id_list):
                 print(obj_idx, scene_name)
                 break
     return picked_scene_names
-
-def generate_scene(scene_idx, anno_idx, return_poses=False, align=False, camera='realsense'):
-    camera_poses = np.load(os.path.join('scenes','scene_%04d' %(scene_idx,),camera, 'camera_poses.npy'))
-    camera_pose = camera_poses[anno_idx]
-    if align:
-        align_mat = np.load(os.path.join('camera_poses', '{}_alignment.npy'.format(camera)))
-        camera_pose = align_mat.dot(camera_pose)
-    camera_split = 'data' if camera == 'realsense' else 'data_kinect'
-    # print('Scene {}, {}'.format(scene_idx, camera_split))
-    scene_reader = xmlReader(os.path.join(scenedir % (scene_idx, camera), 'annotations', '%04d.xml'%(anno_idx)))
-    posevectors = scene_reader.getposevectorlist()
-    obj_list = []
-    mat_list = []
-    model_list = []
-    pose_list = []
-    for posevector in posevectors:
-        obj_idx, mat = parse_posevector(posevector)
-        obj_list.append(obj_idx)
-        mat_list.append(mat)
-
-    for obj_idx, mat in zip(obj_list, mat_list):
-        model = o3d.io.read_point_cloud(os.path.join(modeldir, '%03d'%obj_idx, 'nontextured.ply'))
-        points = np.array(model.points)
-        pose = np.dot(camera_pose, mat)
-        points = transform_points(points, pose)
-        model.points = o3d.utility.Vector3dVector(points)
-        model_list.append(model)
-        pose_list.append(pose)
-
-    if return_poses:
-        return model_list, obj_list, pose_list
-    else:
-        return model_list
 
 def get_obj_pose_list(camera_pose, pose_vectors):
     import numpy as np
@@ -492,3 +459,4 @@ def batch_key_point_2_rotation(centers_xyz, open_points_xyz, upper_points_xyz):
     x_axis = np.hstack((np.zeros((num, 1)), np.zeros((num, 1)), np.ones((num, 1)))).astype(np.float32).reshape(-1, 3, 1)
     rotations = np.dstack((x_axis, unit_open_points_vector.reshape((-1, 3, 1)), unit_upper_points_vector.reshape((-1, 3, 1))))
     return rotations
+

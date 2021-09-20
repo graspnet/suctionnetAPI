@@ -3,11 +3,11 @@
 cimport numpy as np
 import numpy as np
 
-cdef extern from "graspnms.cpp":
+cdef extern from "suctionnms.cpp":
     pass
 
-cdef extern from "graspnms.h":
-    double_array grasp_nms(double_array,tuple_thresh)
+cdef extern from "suctionnms.h":
+    double_array suction_nms(double_array,tuple_thresh)
     double * creat_array(int,int)
     cdef cppclass double_array:
         double_array() except +
