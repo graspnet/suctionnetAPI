@@ -1,4 +1,4 @@
-// Code Written by Minghao Gou
+// Code Written by Hanwen Cao
 
 #ifndef SUCTIONNMS_H
 #define SUCTIONNMS_H

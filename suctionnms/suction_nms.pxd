@@ -1,5 +1,5 @@
 # distutils: language = c++
-# // Code Written by Minghao Gou
+# // Code Written by Hanwen Cao
 cimport numpy as np
 import numpy as np
 

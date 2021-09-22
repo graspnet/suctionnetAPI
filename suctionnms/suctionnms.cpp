@@ -1,4 +1,4 @@
-// Code Written by Minghao Gou
+// Code Written by Hanwen Cao
 
 #include "suctionnms.h"
 #define SCORE_PLACE 0

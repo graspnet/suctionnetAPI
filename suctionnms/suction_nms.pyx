@@ -1,5 +1,5 @@
 # distutils: language = c++
-# // Code Written by Minghao Gou
+# // Code Written by Hanwen Cao
 import numpy as np
 cimport numpy as np
 from libc.string cimport memcpy
