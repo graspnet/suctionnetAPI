@@ -60,6 +60,7 @@ def generate_views(N, phi=(np.sqrt(5)-1)/2, center=np.zeros(3, dtype=np.float32)
 def generate_scene_model(dataset_root, scene_name, anno_idx, return_poses=False, align=False, camera='realsense'):
 
     if align:
+        print('align')
         camera_poses = np.load(os.path.join(dataset_root, 'scenes', scene_name, camera, 'camera_poses.npy'))
         camera_pose = camera_poses[anno_idx]
         align_mat = np.load(os.path.join(dataset_root, 'scenes', scene_name, camera, 'cam0_wrt_table.npy'))
@@ -238,7 +239,7 @@ def create_mesh_cylinder(R, t, score, radius=0.01, height=0.1):
     #     colors = np.array([0.7, 0, 0])
     # else:
     #     colors = np.array([0, 0.7, 0])
-    colors = np.array([score, 1-score, 0])
+    colors = np.array([score, 0, 0])
     colors = np.expand_dims(colors, axis=0)
     colors = np.repeat(colors, vertices.shape[0], axis=0)
     cylinder.vertex_colors = o3d.utility.Vector3dVector(colors)
@@ -260,7 +261,7 @@ def create_table_cloud(width, height, depth, dx=0, dy=0, dz=0, grid_size=0.01):
     xmap += dx
     ymap += dy
     zmap += dz
-    points = np.stack([xmap, ymap, zmap], axis=-1)
+    points = np.stack([xmap, -ymap, -zmap], axis=-1)
     points = points.reshape([-1, 3])
     # print('points',points.shape)
     cloud = o3d.geometry.PointCloud()

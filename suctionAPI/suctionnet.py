@@ -51,7 +51,7 @@ import cv2
 import trimesh
 
 from suction import Suction, SuctionGroup
-from utils.utils import transform_points, parse_posevector, generate_scene_model, create_table_cloud, get_model_suctions, \
+from utils.utils import generate_scene_model, transform_points, parse_posevector, create_table_cloud, get_model_suctions, \
     plot_sucker
 from utils.xmlhandler import xmlReader
 from utils.rotation import viewpoint_to_matrix
@@ -61,9 +61,8 @@ TOTAL_SCENE_NUM = 190
 def _isArrayLike(obj):
     return hasattr(obj, '__iter__') and hasattr(obj, '__len__')
 
-
 class SuctionNet():
-    def __init__(self, root, dense_root, camera='kinect', split='train'):
+    def __init__(self, root, camera='kinect', split='train'):
         '''
         **input**:
 
@@ -77,7 +76,6 @@ class SuctionNet():
         assert camera in ['kinect', 'realsense'], 'camera should be kinect or realsense'
         assert split in ['all', 'train', 'test', 'test_seen', 'test_similar', 'test_novel'], 'split should be all/train/test/test_seen/test_similar/test_novel'
         self.root = root
-        self.dense_root = dense_root
         self.camera = camera
         self.split = split
         self.collisionLabels = {}
@@ -115,7 +113,8 @@ class SuctionNet():
                 self.sceneName.append('scene_'+str(i).zfill(4))
                 self.annId.append(img_num)
 
-        self.objIds = self.getObjIds(self.sceneIds)
+        # self.objIds = self.getObjIds(self.sceneIds)
+        self.objIds = None
 
     def __len__(self):
         return len(self.depthPath)
@@ -140,7 +139,7 @@ class SuctionNet():
                 error_flag = True
                 print('No textured.obj For Object {}'.format(obj_id))
         for obj_id in tqdm(range(88), 'Checking Seal Labels'):
-            if not os.path.exists(os.path.join(self.root, 'seal_label', '%03d_labels.npz' % obj_id)):
+            if not os.path.exists(os.path.join(self.root, 'seal_label', '%03d_seal.npz' % obj_id)):
                 error_flag = True
                 print('No Seal Label For Object {}'.format(obj_id))
         for sceneId in self.sceneIds:
@@ -148,7 +147,7 @@ class SuctionNet():
             posevectors = scene_reader.getposevectorlist()
             for posevector in posevectors:
                 obj_id, _ = parse_posevector(posevector)
-                if not os.path.exists(os.path.join(self.root, 'wrench_label', 'scene_%04d'%sceneId, '%03d_labels.npz' % obj_id)):
+                if not os.path.exists(os.path.join(self.root, 'wrench_label', '%04d_wrench' % sceneId)):
                     error_flag = True
                     print('No Wrench Label For Object {}'.format(obj_id))
         for sceneId in tqdm(self.sceneIds, 'Checking Collosion Labels'):
@@ -261,26 +260,6 @@ class SuctionNet():
             ids += list(range(idx, idx+256))
         return ids
 
-    def loadSuctionLabels(self, objIds=None):
-        '''
-        **Input:**
-
-        - objIds: int or list of int of the object ids.
-
-        **Output:**
-
-        - a dict of grasplabels of each object. 
-        '''
-        # load object-level grasp labels of the given obj ids
-        objIds = self.objIds if objIds is None else objIds
-        assert _isArrayLike(objIds) or isinstance(objIds, int), 'objIds must be an integer or a list/numpy array of integers'
-        objIds = objIds if _isArrayLike(objIds) else [objIds]
-        graspLabels = {}
-        for i in tqdm(objIds, desc='Loading grasping labels...'):
-            file = np.load(os.path.join(self.root, 'grasp_label', '{}_labels.npz'.format(str(i).zfill(3))))
-            graspLabels[i] = (file['points'].astype(np.float32), file['offsets'].astype(np.float32), file['scores'].astype(np.float32))
-        return graspLabels
-
     def loadObjModels(self, objIds=None):
         '''
         **Function:**
@@ -327,6 +306,48 @@ class SuctionNet():
             models.append(trimesh.load(plyfile))
         return models
 
+    def loadSealLabels(self, objIds=None):
+        '''
+        **Input:**
+
+        - objIds: int or list of int of the object ids.
+
+        **Output:**
+
+        - a dict of seal labels of each object. 
+        '''
+        # load object-level grasp labels of the given obj ids
+        objIds = self.objIds if objIds is None else objIds
+        assert _isArrayLike(objIds) or isinstance(objIds, int), 'objIds must be an integer or a list/numpy array of integers'
+        objIds = objIds if _isArrayLike(objIds) else [objIds]
+        graspLabels = {}
+        for i in tqdm(objIds, desc='Loading seal labels...'):
+            file = np.load(os.path.join(self.root, 'seal_label', '{}_seal.npz'.format(str(i).zfill(3))))
+            graspLabels[i] = (file['points'].astype(np.float32), file['normals'].astype(np.float32), file['scores'].astype(np.float32))
+        return graspLabels
+
+    def loadWrenchLabels(self, sceneIds=None):
+        '''
+        **Input:**
+        
+        - sceneIds: int or list of int of the scene ids.
+
+        **Output:**
+
+        - dict of the wrench labels.
+        '''
+        sceneIds = self.sceneIds if sceneIds is None else sceneIds
+        assert _isArrayLike(sceneIds) or isinstance(sceneIds, int), 'sceneIds must be an integer or a list/numpy array of integers'
+        sceneIds = sceneIds if _isArrayLike(sceneIds) else [sceneIds]
+        wrenchLabels = {}
+        for sid in tqdm(sceneIds, desc='Loading wrench labels...'):
+            labels = np.load(os.path.join(self.root, 'wrench_label', '%04d_wrench.npz' % sid))
+            wrenchLabel = []
+            for j in range(len(labels)):
+                wrenchLabel.append(labels['arr_{}'.format(j)])
+            wrenchLabels['scene_'+str(sid).zfill(4)] = wrenchLabel
+        return wrenchLabels
+
     def loadCollisionLabels(self, sceneIds=None):
         '''
         **Input:**
@@ -342,7 +363,7 @@ class SuctionNet():
         sceneIds = sceneIds if _isArrayLike(sceneIds) else [sceneIds]
         collisionLabels = {}
         for sid in tqdm(sceneIds, desc='Loading collision labels...'):
-            labels = np.load(os.path.join(self.root, 'collision_label','scene_'+str(sid).zfill(4),  'collision_labels.npz'))
+            labels = np.load(os.path.join(self.root, 'collision_label', '%04d_collision.npz' % sid))
             collisionLabel = []
             for j in range(len(labels)):
                 collisionLabel.append(labels['arr_{}'.format(j)])
@@ -580,7 +601,7 @@ class SuctionNet():
 
         suckers = []
         
-        seal_dir = os.path.join(self.root, 'seal_label', '%03d_labels.npz' % obj_id)
+        seal_dir = os.path.join(self.root, 'seal_label')
         sampled_points, normals, scores, _ = get_model_suctions('%s/%03d_labels.npz'%(seal_dir, obj_id))
 
         point_inds = np.random.choice(sampled_points.shape[0], visu_num)
@@ -624,7 +645,7 @@ class SuctionNet():
             print('Checking ' + str(obj_i+1) + ' / ' + str(num_obj))
             obj_idx = obj_list[obj_i]
             trans = pose_list[obj_i]
-            seal_dir = os.path.join(self.root, 'seal_label', '%03d_labels.npz' % obj_i)
+            seal_dir = os.path.join(self.root, 'seal_label')
             sampled_points, normals, scores, _ = get_model_suctions('%s/%03d_labels.npz'%(seal_dir, obj_idx))
             collisions = collision_dump['arr_{}'.format(obj_i)]
 
@@ -642,13 +663,13 @@ class SuctionNet():
                 R = viewpoint_to_matrix(normal)
                 t = transform_points(target_point[np.newaxis,:], trans).squeeze()
                 R = np.dot(trans[:3,:3], R)
-                sucker = plot_sucker(R, t, score * float(~bool(collision)), radius, height)
+                sucker = plot_sucker(R, t, score * float(int(~collision)), radius, height)
                 suckers.append(sucker)
                 sucker_params.append([target_point[0],target_point[1],target_point[2],normal[0],normal[1],normal[2],radius, height])
                 
             o3d.visualization.draw_geometries([table, *model_list, *suckers], width=1536, height=864)
 
-    def show6DPose(self, scene_idx, anno_idx, camera, visu_num):
+    def show6DPose(self, scene_idx, anno_idx, camera):
         scene_name = 'scene_%04d' % scene_idx
         model_list, _, _ = generate_scene_model(self.root, scene_name, anno_idx, return_poses=True, camera=camera, align=True)
         table = create_table_cloud(1.0, 0.02, 1.0, dx=-0.5, dy=-0.5, dz=0, grid_size=0.01)
@@ -658,4 +679,29 @@ class SuctionNet():
         table.points = o3d.utility.Vector3dVector(transform_points(np.asarray(table.points), camera_pose))
         
         o3d.visualization.draw_geometries([table, *model_list], width=1536, height=864)
-    
+        
+
+if __name__ == "__main__":
+    # debug
+    graspnet_root = r'G:\MyProject\data\Grasping\graspnet'
+    # graspnet_root = '/media/hanwen/MyPassport1/MyProject/data/Grasping/graspnet'
+    DATASET_ROOT = graspnet_root
+    camera = 'kinect'
+
+    mysuctionnet = SuctionNet(root=graspnet_root, camera=camera, split='test')
+    seal_dict = mysuctionnet.loadSealLabels(objIds=[0, 1, 2])
+    print('keys:', seal_dict.keys())
+    print(type(seal_dict[1]))
+
+    wrench_dict = mysuctionnet.loadWrenchLabels(sceneIds=[0, 1, 2])
+    print('keys:', wrench_dict.keys())
+    print(type(wrench_dict['scene_0001']))
+
+    collision_dict = mysuctionnet.loadCollisionLabels(sceneIds=[0, 1, 2])
+    print('keys:', collision_dict.keys())
+    print(type(collision_dict['scene_0001']))
+
+    mysuctionnet.showSceneSuction(scene_idx=100, anno_idx=0, camera=camera, visu_num_each=10)
+    mysuctionnet.showObjSuction(obj_id=0, visu_num=20)
+    mysuctionnet.show6DPose(scene_idx=100, anno_idx=0, camera=camera)
+
