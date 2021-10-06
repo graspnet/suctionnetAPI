@@ -1,13 +1,7 @@
-import os
 import numpy as np
 import open3d as o3d
-from transforms3d.euler import euler2mat, quat2mat
-import skimage
-from .rotation import batch_viewpoint_to_matrix, matrix_to_dexnet_params, viewpoint_to_matrix
-import torch
-import torch.nn as nn
-from meshpy.obj_file import ObjFile
-from meshpy.sdf_file import SdfFile
+from transforms3d.euler import euler2mat
+from .rotation import batch_viewpoint_to_matrix, viewpoint_to_matrix
 
 
 k = 15.6

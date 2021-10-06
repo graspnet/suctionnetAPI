@@ -50,11 +50,12 @@ import open3d as o3d
 import cv2
 import trimesh
 
-from suction import Suction, SuctionGroup
-from utils.utils import generate_scene_model, transform_points, parse_posevector, create_table_cloud, get_model_suctions, \
+from .suction import Suction, SuctionGroup
+from .utils.utils import generate_scene_model, transform_points, parse_posevector, create_table_cloud, get_model_suctions, \
     plot_sucker
-from utils.xmlhandler import xmlReader
-from utils.rotation import viewpoint_to_matrix
+from .utils.xmlhandler import xmlReader
+from .utils.rotation import viewpoint_to_matrix
+
 
 TOTAL_SCENE_NUM = 190
 
@@ -62,20 +63,22 @@ def _isArrayLike(obj):
     return hasattr(obj, '__iter__') and hasattr(obj, '__len__')
 
 class SuctionNet():
-    def __init__(self, root, camera='kinect', split='train'):
-        '''
-        **input**:
+    '''
+    suctionnetAPI main class.
+    
+    **input**:
+    
+    - camera: string of type of camera: "kinect" or "realsense"
+    
+    - split: string of type of split of dataset: "all", "train", "test", "test_seen", "test_similar" or "test_novel"
+    '''
 
-        - camera: string of type of camera: kinect or realsense
-
-        - split: string of type of split of dataset: "all", "train", "test", "test_seen", "test_similar" or "test_novel"
-
-        - sceneIDs: a list of scene ids of the dataset, split should be "user_define"
-        '''
+    def __init__(self, root, camera='kinect', split='all'):
 
         assert camera in ['kinect', 'realsense'], 'camera should be kinect or realsense'
         assert split in ['all', 'train', 'test', 'test_seen', 'test_similar', 'test_novel'], 'split should be all/train/test/test_seen/test_similar/test_novel'
         self.root = root
+        
         self.camera = camera
         self.split = split
         self.collisionLabels = {}
@@ -138,20 +141,20 @@ class SuctionNet():
             if not os.path.exists(os.path.join(self.root, 'models','%03d' % obj_id, 'textured.obj')):
                 error_flag = True
                 print('No textured.obj For Object {}'.format(obj_id))
+        for obj_id in tqdm(range(88), 'Checking Dense Point Clouds'):
+            if not os.path.exists(os.path.join(self.root, 'dense_point_clouds', '%03d.npz' % obj_id)):
+                error_flag = True
+                print('No Dense Point Cloud For Object {}'.format(obj_id))
         for obj_id in tqdm(range(88), 'Checking Seal Labels'):
             if not os.path.exists(os.path.join(self.root, 'seal_label', '%03d_seal.npz' % obj_id)):
                 error_flag = True
                 print('No Seal Label For Object {}'.format(obj_id))
-        for sceneId in self.sceneIds:
-            scene_reader = xmlReader(os.path.join(self.root, 'scenes', 'scene_%04d' % sceneId, 'kinect', 'annotations', '%04d.xml'% 0))
-            posevectors = scene_reader.getposevectorlist()
-            for posevector in posevectors:
-                obj_id, _ = parse_posevector(posevector)
-                if not os.path.exists(os.path.join(self.root, 'wrench_label', '%04d_wrench' % sceneId)):
-                    error_flag = True
-                    print('No Wrench Label For Object {}'.format(obj_id))
+        for sceneId in tqdm(self.sceneIds, 'Checking Wrench Labels'):
+            if not os.path.exists(os.path.join(self.root, 'wrench_label', '%04d_wrench.npz' % sceneId)):
+                error_flag = True
+                print('No Wrench Label For Scene {}'.format(sceneId))
         for sceneId in tqdm(self.sceneIds, 'Checking Collosion Labels'):
-            if not os.path.exists(os.path.join(self.root, 'collision_label', '%04d_collision.npz' % sceneId)):
+            if not os.path.exists(os.path.join(self.root, 'suction_collision_label', '%04d_collision.npz' % sceneId)):
                 error_flag = True
                 print('No Collision Labels For Scene {}'.format(sceneId))
         for sceneId in tqdm(self.sceneIds, 'Checking Scene Datas'):
@@ -189,9 +192,7 @@ class SuctionNet():
                     if not os.path.exists(os.path.join(camera_dir,'annotations','%04d.xml' % annId)):
                         error_flag = True
                         print('No Annotations For Scene {}, Camera:{}, annotion:{}'.format(sceneId, camera, annId))
-                    if not os.path.exists(os.path.join(camera_dir,'rect','%04d.npy' % annId)):
-                        error_flag = True
-                        print('No Rectangle Labels For Scene {}, Camera:{}, annotion:{}'.format(sceneId, camera, annId))
+
         return not error_flag
 
     def getSceneIds(self, objIds=None):
@@ -593,6 +594,18 @@ class SuctionNet():
             return (rgbPath, depthPath, segLabelPath, metaPath, scene_name,annId)
 
     def showObjSuction(self, obj_id, visu_num):
+        '''
+        **Input:**
+        
+        - obj_id: int of object id.
+        
+        - visu_num: how many suctions to visualize.
+        
+        **Output:**
+        
+        - No output but the 3D visualization of the object model and suctions will show up.
+        '''
+        
         ply_dir = os.path.join(self.root, 'models', '%03d' % obj_id, 'nontextured.ply')
         model = o3d.io.read_point_cloud(ply_dir)
         
@@ -624,6 +637,22 @@ class SuctionNet():
         o3d.visualization.draw_geometries([model, *suckers], width=1536, height=864)
 
     def showSceneSuction(self, scene_idx, anno_idx, camera, visu_num_each):
+        '''
+        **Input:**
+        
+        - scene_idx: int of the scene index.
+        
+        - anno_idx: int of the annotation index.
+
+        - camera: string of the camera type, 'realsense' or 'kinect'.
+        
+        - visu_num_each: int of the number of suctions to viualize on each object'.
+        
+        **Output:**
+
+        - No output but the 3D visualization of the scene and suctions will show up.
+        '''
+
         scene_name = 'scene_%04d' % scene_idx
         model_list, obj_list, pose_list = generate_scene_model(self.root, scene_name, anno_idx, return_poses=True, camera=camera, align=True)
         table = create_table_cloud(1.0, 0.02, 1.0, dx=-0.5, dy=-0.5, dz=0, grid_size=0.01)
@@ -670,6 +699,20 @@ class SuctionNet():
             o3d.visualization.draw_geometries([table, *model_list, *suckers], width=1536, height=864)
 
     def show6DPose(self, scene_idx, anno_idx, camera):
+        '''
+        **Input:**
+        
+        - scene_idx: int of the scene id. 
+        
+        - anno_idx: int of the annotation id
+        
+        - camera: string of the camera type, 'realsense' or 'kinect'.
+
+        **Output:**
+        
+        - No output but the visualization of the scene will show up.
+        '''
+
         scene_name = 'scene_%04d' % scene_idx
         model_list, _, _ = generate_scene_model(self.root, scene_name, anno_idx, return_poses=True, camera=camera, align=True)
         table = create_table_cloud(1.0, 0.02, 1.0, dx=-0.5, dy=-0.5, dz=0, grid_size=0.01)
@@ -679,7 +722,7 @@ class SuctionNet():
         table.points = o3d.utility.Vector3dVector(transform_points(np.asarray(table.points), camera_pose))
         
         o3d.visualization.draw_geometries([table, *model_list], width=1536, height=864)
-        
+
 
 if __name__ == "__main__":
     # debug

@@ -4,7 +4,6 @@ import numpy as np
 from PIL import Image
 from transforms3d.euler import euler2mat
 
-from .rotation import batch_viewpoint_params_to_matrix
 from .xmlhandler import xmlReader
 
 class CameraInfo():

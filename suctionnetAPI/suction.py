@@ -6,7 +6,7 @@ import numpy as np
 import copy
 # import cv2
 
-from utils.utils import plot_sucker
+from .utils.utils import plot_sucker
 
 SUCTION_ARRAY_LEN = 8
 EPS = 1e-8
@@ -211,7 +211,7 @@ class SuctionGroup():
         '''
         **Output:**
 
-        - list of open3d.geometry.Geometry of the grippers.
+        - list of open3d.geometry.Geometry of the suctions.
         '''
         geometry = []
         for i in range(len(self.suction_group_array)):
@@ -244,7 +244,7 @@ class SuctionGroup():
 
         **Output:**
 
-        - SuctionGroup instance of sample suctions.
+        - SuctionGroup instance of sampled suctions.
         '''
         if numSuction > self.__len__():
             raise ValueError('Number of sampled suction should be no more than the total number of suctions in the group')
@@ -255,6 +255,17 @@ class SuctionGroup():
         return shuffled_suction_group
 
     def nms(self, translation_thresh = 0.1, rotation_thresh = 30.0 / 180.0 * np.pi):
+        '''
+        **Input:**
+        
+        - translation_thresh: float of the translation threshold.
+        
+        - rotation_thresh: float of the rotation threshold.
+        
+        **Output:**
+        
+        - SuctionGroup instance after nms.
+        '''
         from suction_nms import nms_suction
         return SuctionGroup(nms_suction(self.suction_group_array, translation_thresh, rotation_thresh))
 
