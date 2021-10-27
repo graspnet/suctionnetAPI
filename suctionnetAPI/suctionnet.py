@@ -33,9 +33,10 @@ __version__ = '1.0'
 #  loadCollisionLabels  - Load collision labels with the specified scene ids.
 #  loadSuction            - Load suction labels with the specified scene and annotation id.
 #  loadData             - Load data path with the specified data ids.
-#  showObjSuction         - Save visualization of the suction pose of specified object ids.
-#  showSceneSuction       - Save visualization of the suction pose of specified scene ids.
-#  show6DPose           - Save visualization of the 6d pose of specified scene ids, project obj models onto pointcloud
+#  showObjSuction         - visualization of the suction pose of specified object ids.
+#  showSceneCollision       - visualization of the collision labels of specified scene ids.
+#  showSceneWrench       - visualization of the wrench labels of specified scene ids.
+#  show6DPose           - visualization of the 6d pose of specified scene ids, project obj models onto pointcloud
 # Throughout the API "ann"=annotation, "obj"=object, and "img"=image.
 
 # SuctionNet Toolbox.      version 1.0
@@ -51,7 +52,7 @@ import cv2
 import trimesh
 
 from .suction import Suction, SuctionGroup
-from .utils.utils import generate_scene_model, transform_points, parse_posevector, create_table_cloud, get_model_suctions, \
+from .utils.utils import generate_scene_model, plot_sucker_collision, transform_points, parse_posevector, create_table_cloud, get_model_suctions, \
     plot_sucker
 from .utils.xmlhandler import xmlReader
 from .utils.rotation import viewpoint_to_matrix
@@ -615,7 +616,7 @@ class SuctionNet():
         suckers = []
         
         seal_dir = os.path.join(self.root, 'seal_label')
-        sampled_points, normals, scores, _ = get_model_suctions('%s/%03d_labels.npz'%(seal_dir, obj_id))
+        sampled_points, normals, scores, _ = get_model_suctions('%s/%03d_seal.npz'%(seal_dir, obj_id))
 
         point_inds = np.random.choice(sampled_points.shape[0], visu_num)
         np.random.shuffle(point_inds)
@@ -636,7 +637,7 @@ class SuctionNet():
                 
         o3d.visualization.draw_geometries([model, *suckers], width=1536, height=864)
 
-    def showSceneSuction(self, scene_idx, anno_idx, camera, visu_num_each):
+    def showSceneCollision(self, scene_idx, anno_idx, camera, visu_num_each):
         '''
         **Input:**
         
@@ -650,7 +651,7 @@ class SuctionNet():
         
         **Output:**
 
-        - No output but the 3D visualization of the scene and suctions will show up.
+        - No output but the 3D visualization of the scene and collision labels will show up.
         '''
 
         scene_name = 'scene_%04d' % scene_idx
@@ -661,8 +662,8 @@ class SuctionNet():
         camera_pose = camera_poses[anno_idx]
         table.points = o3d.utility.Vector3dVector(transform_points(np.asarray(table.points), camera_pose))
         
-        collision_dir = os.path.join(self.root, 'collision_label')
-        collision_dump = np.load(os.path.join(collision_dir, '{}_{}_collision.npz'.format(scene_idx, camera)))
+        collision_dir = os.path.join(self.root, 'suction_collision_label')
+        collision_dump = np.load(os.path.join(collision_dir, '{:04d}_collision.npz'.format(scene_idx)))
 
         radius = 0.01
         height = 0.1
@@ -675,7 +676,7 @@ class SuctionNet():
             obj_idx = obj_list[obj_i]
             trans = pose_list[obj_i]
             seal_dir = os.path.join(self.root, 'seal_label')
-            sampled_points, normals, scores, _ = get_model_suctions('%s/%03d_labels.npz'%(seal_dir, obj_idx))
+            sampled_points, normals, _, _ = get_model_suctions('%s/%03d_seal.npz'%(seal_dir, obj_idx))
             collisions = collision_dump['arr_{}'.format(obj_i)]
 
             point_inds = np.random.choice(sampled_points.shape[0], visu_num_each)
@@ -686,17 +687,86 @@ class SuctionNet():
             for point_ind in point_inds:
                 target_point = sampled_points[point_ind]
                 normal = normals[point_ind]
-                score = scores[point_ind]
+                # score = scores[point_ind]
                 collision = collisions[point_ind]
 
                 R = viewpoint_to_matrix(normal)
                 t = transform_points(target_point[np.newaxis,:], trans).squeeze()
                 R = np.dot(trans[:3,:3], R)
-                sucker = plot_sucker(R, t, score * float(int(~collision)), radius, height)
+                sucker = plot_sucker_collision(R, t, collision, radius, height)
                 suckers.append(sucker)
                 sucker_params.append([target_point[0],target_point[1],target_point[2],normal[0],normal[1],normal[2],radius, height])
                 
             o3d.visualization.draw_geometries([table, *model_list, *suckers], width=1536, height=864)
+
+    def showSceneWrench(self, scene_idx, anno_idx, camera, visu_num_each):
+        '''
+        **Input:**
+        
+        - scene_idx: int of the scene index.
+        
+        - anno_idx: int of the annotation index.
+
+        - camera: string of the camera type, 'realsense' or 'kinect'.
+        
+        - visu_num_each: int of the number of suctions to viualize on each object'.
+        
+        **Output:**
+
+        - No output but the 3D visualization of the scene and collision labels will show up.
+        '''
+
+        radius = 0.002
+        height = 0.05
+
+        scene_name = 'scene_%04d' % scene_idx
+        model_list, obj_list, pose_list = generate_scene_model(self.root, scene_name, anno_idx, 
+                                            return_poses=True, align=True, camera=camera)
+        
+        table = create_table_cloud(1.0, 0.01, 1.0, dx=-0.5, dy=-0.5, dz=0, grid_size=0.01)
+        camera_poses = np.load(os.path.join(self.root, 'scenes', scene_name, camera, 'camera_poses.npy'))
+        camera_pose = camera_poses[anno_idx]
+        
+        table.points = o3d.utility.Vector3dVector(transform_points(np.asarray(table.points), camera_pose))
+        
+        wrench_dir = os.path.join(self.root, 'wrench_label')
+        wrench_dump = np.load(os.path.join(wrench_dir, '{:04d}_wrench.npz'.format(scene_idx)))
+        num_obj = len(obj_list)
+        
+        seal_dir =  os.path.join(self.root, 'seal_label')
+        for obj_i in range(len(obj_list)):
+            print('Checking ' + str(obj_i+1) + ' / ' + str(num_obj))
+            obj_idx = obj_list[obj_i]
+            print('object id:', obj_idx)
+            trans = pose_list[obj_i]
+
+            sampled_points, normals, _, _ = get_model_suctions('%s/%03d_seal.npz'%(seal_dir, obj_idx))
+            sampled_points = transform_points(sampled_points, trans)
+            center = np.mean(sampled_points, axis=0)
+            score = wrench_dump['arr_{}'.format(obj_i)]
+
+            arrow = o3d.geometry.TriangleMesh.create_arrow(cylinder_radius=0.01, cone_radius=0.015, 
+                                                                cylinder_height=0.2, cone_height=0.04)
+            arrow_points = np.asarray(arrow.vertices)
+            arrow_points[:, 2] = -arrow_points[:, 2]
+            arrow_points = arrow_points + center[np.newaxis,:]
+            arrow.vertices = o3d.utility.Vector3dVector(arrow_points)
+            
+            point_inds = np.random.choice(sampled_points.shape[0], visu_num_each)
+            np.random.shuffle(point_inds)
+            suckers = []
+
+            for point_ind in point_inds:
+                target_point = sampled_points[point_ind]
+                normal = normals[point_ind]
+                
+                R = viewpoint_to_matrix(normal)
+                t = target_point
+                R = np.dot(trans[:3,:3], R)
+                sucker = plot_sucker(R, t, score[point_ind], radius, height)
+                suckers.append(sucker)
+                
+            o3d.visualization.draw_geometries([table, *model_list, *suckers, arrow], width=1536, height=864)
 
     def show6DPose(self, scene_idx, anno_idx, camera):
         '''
@@ -722,29 +792,4 @@ class SuctionNet():
         table.points = o3d.utility.Vector3dVector(transform_points(np.asarray(table.points), camera_pose))
         
         o3d.visualization.draw_geometries([table, *model_list], width=1536, height=864)
-
-
-if __name__ == "__main__":
-    # debug
-    graspnet_root = r'G:\MyProject\data\Grasping\graspnet'
-    # graspnet_root = '/media/hanwen/MyPassport1/MyProject/data/Grasping/graspnet'
-    DATASET_ROOT = graspnet_root
-    camera = 'kinect'
-
-    mysuctionnet = SuctionNet(root=graspnet_root, camera=camera, split='test')
-    seal_dict = mysuctionnet.loadSealLabels(objIds=[0, 1, 2])
-    print('keys:', seal_dict.keys())
-    print(type(seal_dict[1]))
-
-    wrench_dict = mysuctionnet.loadWrenchLabels(sceneIds=[0, 1, 2])
-    print('keys:', wrench_dict.keys())
-    print(type(wrench_dict['scene_0001']))
-
-    collision_dict = mysuctionnet.loadCollisionLabels(sceneIds=[0, 1, 2])
-    print('keys:', collision_dict.keys())
-    print(type(collision_dict['scene_0001']))
-
-    mysuctionnet.showSceneSuction(scene_idx=100, anno_idx=0, camera=camera, visu_num_each=10)
-    mysuctionnet.showObjSuction(obj_id=0, visu_num=20)
-    mysuctionnet.show6DPose(scene_idx=100, anno_idx=0, camera=camera)
 

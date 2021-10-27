@@ -234,11 +234,23 @@ def create_mesh_cylinder(R, t, score, radius=0.01, height=0.1):
     vertices[:, 0] += height / 2
     vertices = np.dot(R, vertices.T).T + t
     cylinder.vertices = o3d.utility.Vector3dVector(vertices)
-    # if collision:
-    #     colors = np.array([0.7, 0, 0])
-    # else:
-    #     colors = np.array([0, 0.7, 0])
     colors = np.array([score, 0, 0])
+    colors = np.expand_dims(colors, axis=0)
+    colors = np.repeat(colors, vertices.shape[0], axis=0)
+    cylinder.vertex_colors = o3d.utility.Vector3dVector(colors)
+
+    return cylinder
+
+def create_mesh_cylinder_detection(R, t, collision, radius, height):
+    cylinder = o3d.geometry.TriangleMesh().create_cylinder(radius, height)
+    vertices = np.asarray(cylinder.vertices)[:, [2, 1, 0]]
+    vertices[:, 0] += height / 2
+    vertices = np.dot(R, vertices.T).T + t
+    cylinder.vertices = o3d.utility.Vector3dVector(vertices)
+    if collision:
+        colors = np.array([0.7, 0, 0])
+    else:
+        colors = np.array([0, 0.7, 0])
     colors = np.expand_dims(colors, axis=0)
     colors = np.repeat(colors, vertices.shape[0], axis=0)
     cylinder.vertex_colors = o3d.utility.Vector3dVector(colors)
@@ -251,7 +263,14 @@ def plot_sucker(R, t, score, radius=0.01, height=0.1):
         R: rotation matrix
     '''
     return create_mesh_cylinder(R, t, score, radius, height)
-    
+
+def plot_sucker_collision(R, t, collision, radius=0.01, height=0.1):
+    '''
+        center: target point
+        R: rotation matrix
+    '''
+    return create_mesh_cylinder_detection(R, t, collision, radius, height)
+
 def create_table_cloud(width, height, depth, dx=0, dy=0, dz=0, grid_size=0.01):
     xmap = np.linspace(0, width, int(width/grid_size))
     ymap = np.linspace(0, depth, int(depth/grid_size))
@@ -446,13 +465,10 @@ def batch_key_point_2_rotation(centers_xyz, open_points_xyz, upper_points_xyz):
 
     - rotations: numpy array of the rotation matrix of shape (-1, 3, 3).
     '''
-    # print('open_points_xyz:{}'.format(open_points_xyz))
-    # print('upper_points_xyz:{}'.format(upper_points_xyz))
     open_points_vector = open_points_xyz - centers_xyz # (-1, 3)
     upper_points_vector = upper_points_xyz - centers_xyz # (-1, 3)
     open_point_norm = np.linalg.norm(open_points_vector, axis = 1).reshape(-1, 1)
     upper_point_norm = np.linalg.norm(upper_points_vector, axis = 1).reshape(-1, 1)
-    # print('open_point_norm:{}, upper_point_norm:{}'.format(open_point_norm, upper_point_norm))
     unit_open_points_vector = open_points_vector / np.hstack((open_point_norm, open_point_norm, open_point_norm)) # (-1, 3)
     unit_upper_points_vector = upper_points_vector / np.hstack((upper_point_norm, upper_point_norm, upper_point_norm)) # (-1, 3)
     num = open_points_vector.shape[0]
