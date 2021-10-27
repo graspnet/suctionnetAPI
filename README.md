@@ -8,11 +8,9 @@ API for SuctionNet-1Billion dataset of RA-L paper "SuctionNet-1Billion:  A  Larg
 
 ## Suction Definition
 
-```javascript
-<div align="center">
-<img src=https://github.com/graspnet/suctionnetAPI/blob/master/suction_definition.jpg />
-</div>
-```
+<img src="suction_definition.jpg" style="zoom:40%" />
+
+
 
 ## Installation
 
